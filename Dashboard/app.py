@@ -37,7 +37,8 @@ with st.sidebar:
 
     # Select variable for distribution plot
     exclude_columns = ['CLIENTNUM', 'Attrition_Flag', 'Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_2',
-                       'Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_1']
+                       'Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_1',
+                       'Prob_Leave', 'Indicator']
     variable_list = [col for col in testset.columns if col not in exclude_columns]
     selected_variable = st.selectbox('Select a variable for distribution plot', variable_list)
 
