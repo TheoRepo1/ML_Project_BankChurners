@@ -50,7 +50,7 @@ class Preprocessor:
 
     def get_feature_names(self):
         if self.preprocessor is None:
-            raise ValueError("Le préprocesseur n'a pas été initialisé. Assurez-vous d'avoir appelé la méthode preprocess avant d'accéder aux noms des caractéristiques.")
+            raise ValueError("Preprocessor not initialized.")
         return self.preprocessor.get_feature_names_out()
 
 def preprocess_data(file_path="BankChurners.csv"):

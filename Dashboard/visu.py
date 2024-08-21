@@ -21,12 +21,6 @@ def display_top_features_bars(model, feature_names):
 def plot_distribution(df, variable, client_data, exclude_columns=None):
     """
     Plots the distribution of a selected variable and highlights the client's value.
-
-    Args:
-        df (pd.DataFrame): The dataframe containing the data.
-        variable (str): The variable for which to plot the distribution.
-        client_data (pd.Series): The data for the selected client.
-        exclude_columns (list): List of columns to exclude from the plot (default is None).
     """
     if exclude_columns is None:
         exclude_columns = []

@@ -4,6 +4,8 @@ import pickle
 from preprocessing import preprocess_data
 from visu import display_top_features_bars, plot_distribution
 
+#######################
+### Loading
 # Load data
 X_train_trans, X_test_trans, y_train, y_test, feature_names, X_test_trans_df, testset = preprocess_data()
 
@@ -11,6 +13,8 @@ X_train_trans, X_test_trans, y_train, y_test, feature_names, X_test_trans_df, te
 with open('XGB_F191.pkl', 'rb') as file:
     model = pickle.load(file)
 
+#######################
+### Utils
 # Calculate probabilities
 X_test_trans_df = pd.DataFrame(X_test_trans, columns=feature_names)
 testset['Prob_Leave'] = model.predict_proba(X_test_trans_df)[:, 1]
