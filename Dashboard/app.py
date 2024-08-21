@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
 import pickle
-import plotly.express as px
-import plotly.graph_objects as go
-from preprocessing import main as preprocess_data
+from preprocessing import preprocess_data
+from visu import display_top_features_bars, plot_distribution
 
-#######################
 # Load data
 X_train_trans, X_test_trans, y_train, y_test, feature_names, X_test_trans_df, testset = preprocess_data()
 
@@ -13,64 +11,46 @@ X_train_trans, X_test_trans, y_train, y_test, feature_names, X_test_trans_df, te
 with open('XGB_F191.pkl', 'rb') as file:
     model = pickle.load(file)
 
-# Function to display top features as horizontal bars
-def display_top_features_bars(model, feature_names):
-    importances = model.feature_importances_
-    feature_importance_df = pd.DataFrame({
-        'Feature': feature_names,
-        'Importance': importances
-    }).sort_values(by='Importance', ascending=False).head(5)  # Top 5 features
+# Calculate probabilities
+X_test_trans_df = pd.DataFrame(X_test_trans, columns=feature_names)
+testset['Prob_Leave'] = model.predict_proba(X_test_trans_df)[:, 1]
 
-    # Remove "MinMax_Q__" prefix from feature names
-    feature_importance_df['Feature'] = feature_importance_df['Feature'].str.replace('MinMax_Q__', '', regex=False)
-
-    st.markdown("#### Top 5 Important Features")
-
-    # Create a horizontal bar chart
-    max_importance = feature_importance_df['Importance'].max()
-    for index, row in feature_importance_df.iterrows():
-        st.markdown(f"<div style='font-size: 12px;'><b>{row['Feature']}</b></div>", unsafe_allow_html=True)
-        st.progress(int(row['Importance'] / max_importance * 100))
+# Create a column for visual indicator
+testset['Indicator'] = testset['Prob_Leave'].apply(lambda x: '🔴' if x > 0.5 else '')
 
 #######################
 # Sidebar
 with st.sidebar:
     st.title('🔍 Client Prediction Dashboard')
 
-    client_list = testset['CLIENTNUM'].unique()
-    selected_client = st.selectbox('Select a client by number', client_list)
+    # Select client by number with indicator
+    client_list = testset[['CLIENTNUM', 'Indicator']].drop_duplicates()
+    client_list['Display'] = client_list.apply(lambda row: f"{row['CLIENTNUM']} {row['Indicator']}", axis=1)
+    selected_client = st.selectbox('Select a client by number', client_list['Display'])
+
+    # Extract the client number from the selected option
+    selected_client_num = selected_client.split()[0]
 
     # Select variable for distribution plot
-    variable_list = testset.columns.tolist()
+    exclude_columns = ['CLIENTNUM', 'Attrition_Flag', 'Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_2',
+                       'Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_1']
+    variable_list = [col for col in testset.columns if col not in exclude_columns]
     selected_variable = st.selectbox('Select a variable for distribution plot', variable_list)
 
-    # Function to plot distribution of selected variable
-    def plot_distribution(variable, client_data):
-        value_counts = testset[variable].value_counts().reset_index()
-        value_counts.columns = [variable, 'Count']
-
-        fig = px.bar(value_counts, x=variable, y='Count', title=f'Distribution of {variable}', labels={variable: variable, 'Count': 'Count'})
-
-        # Highlight the client's value with a small red bar
-        client_value = client_data[variable]
-        client_count = value_counts[value_counts[variable] == client_value]['Count'].values[0]
-        fig.add_trace(go.Bar(x=[client_value], y=[client_count], marker=dict(color='red'), name='Client Value', width=0.2))
-
-        # Adjust y-axis to fit the data
-        fig.update_layout(yaxis=dict(range=[0, value_counts['Count'].max() * 1.1]))
-
-        st.plotly_chart(fig)
-
-    # Plot distribution of selected variable
     if selected_client and selected_variable:
-        client_data = testset[testset['CLIENTNUM'] == selected_client].iloc[0]
-        plot_distribution(selected_variable, client_data)
+        client_data = testset[testset['CLIENTNUM'] == int(selected_client_num)].iloc[0]
+        plot_distribution(testset, selected_variable, client_data)
 
 #######################
-# Function to display client details and prediction
-def display_client_details_and_prediction(client_num):
-    if client_num in testset['CLIENTNUM'].values:
-        sample_idx = testset.index[testset['CLIENTNUM'] == client_num][0]
+# Main Dashboard Layout
+col0, col1 = st.columns([2, 1], gap='large')
+
+with col0:
+    st.header("🔍 Client Prediction Dashboard")
+    
+    # Display Client Details
+    if selected_client_num:
+        sample_idx = testset.index[testset['CLIENTNUM'] == int(selected_client_num)][0]
         sample_data_original = testset.iloc[sample_idx]
 
         categorical_vars = ["Gender", "Education_Level", "Marital_Status", "Income_Category"]
@@ -79,14 +59,15 @@ def display_client_details_and_prediction(client_num):
                         "Total_Amt_Chng_Q4_Q1", "Total_Relationship_Count"]
 
         st.markdown('#### Client Details')
-        # Display categorical variables
+        
+        # Display categorical variables in a row
         cat_cols = st.columns(4)
         for i, var in enumerate(categorical_vars):
             with cat_cols[i % 4]:
                 st.markdown(f"<div style='width: 150px;'><strong>{var.replace('_', ' ')}:</strong></div>", unsafe_allow_html=True)
                 st.info(f"{sample_data_original[var]}")
 
-        # Display numeric variables in groups of 4
+        # Display numeric variables in rows of 4
         for i in range(0, len(numeric_vars), 4):
             num_cols = st.columns(4)
             for j, var in enumerate(numeric_vars[i:i+4]):
@@ -100,54 +81,26 @@ def display_client_details_and_prediction(client_num):
                         min_value=float(min_value),
                         max_value=float(max_value),
                         value=float(current_value),
-                        format="%.2f"  # Formatting to two decimal places
+                        format="%.2f"
                     )
 
-        # Predict automatically
+with col1:
+    # Display Prediction and Probabilities
+    if selected_client_num:
+        sample_idx = testset.index[testset['CLIENTNUM'] == int(selected_client_num)][0]
         sample_data = X_test_trans[sample_idx].reshape(1, -1)
         prediction = model.predict(sample_data)
-        prediction_proba = model.predict_proba(sample_data)[0]  # Get the probabilities for each class
+        prediction_proba = model.predict_proba(sample_data)[0]
 
-        # Determine result and color
-        result = 'Restera' if prediction[0] == 0 else 'Va partir'
-        color = 'green' if prediction[0] == 0 else 'red'
-        prob = prediction_proba[0] if prediction[0] == 0 else prediction_proba[1]  # Probability for the predicted class
+        # Display prediction result
+        st.markdown('#### Prediction Probability')
+        if prediction == 1:
+            st.error(f"The model predicts that this client will **leave** the bank.")
+        else:
+            st.success(f"The model predicts that this client will **stay** with the bank.")
 
-        return result, color, prob
+        # Display prediction probabilities
+        st.info(f"Probability of leaving: **{prediction_proba[1]:.2%}**")
 
-    else:
-        st.write("Client not found in the test set.")
-        return None, None, None
-
-#######################
-# Dashboard Main Panel
-col0, sep, col1 = st.columns((3, 0.1, 1), gap='medium')
-
-with col0:
-    result, color, prob = display_client_details_and_prediction(selected_client)
-
-with col1:
-    if result:
-        st.markdown('#### Prediction')
-        # Display prediction result with a small box
-        st.markdown(f"""
-        <div style='
-            background-color: {color};
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            width: 150px;
-            text-align: center;
-            font-size: 16px;'>
-            <strong>Prediction</strong><br>
-            {result}
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Display probability of confidence with st.metric
-        st.metric(label="Confidence", value=f"{prob:.2%}")
+        # Display top 5 important features
         display_top_features_bars(model, feature_names)
-
-with sep:
-    # Display a vertical line
-    st.markdown("<div style='background-color: gray; width: 1px; height: 100vh;'></div>", unsafe_allow_html=True)
