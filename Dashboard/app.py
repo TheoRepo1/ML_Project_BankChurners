@@ -21,7 +21,7 @@ testset['Indicator'] = testset['Prob_Leave'].apply(lambda x: '🔴' if x > 0.5 e
 #######################
 # Sidebar
 with st.sidebar:
-    st.title('🔍 Client Prediction Dashboard')
+    st.title('Dashboard by Théo JEAN')
 
     # Select client by number with indicator
     client_list = testset[['CLIENTNUM', 'Indicator']].drop_duplicates()
